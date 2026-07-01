@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+    <title>IDE IGN - Catálogo de Información Geoespacial</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+
+            font-family: Segoe UI, Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            background: #f0f2f5;
+
+        }
+
+
+        /* HEADER */
+        header {
+
+            height: 90px;
+
+            background:
+                linear-gradient(90deg,
+                    rgba(0, 45, 90, .95),
+                    rgba(0, 65, 120, .95));
+
+            display: flex;
+            align-items: center;
+            padding: 0px 30px;
+            color: white;
+
+            box-shadow:
+                0px 2px 8px rgba(0, 0, 0, .2);
+
+        }
+
+        .logo {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .logo p {
+            font-size: 13px;
+            opacity: .85;
+        }
+
+
+        /* CONTENEDOR GENERAL */
+        .container {
+            display: flex;
+            height: calc(100vh - 90px);
+        }
+
+
+        /* PANEL IZQUIERDO */
+        .sidebar {
+            width: 280px;
+            background: white;
+            padding: 20px;
+            overflow-y: auto;
+
+            border-right: 1px solid #ddd;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+
+        .group {
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border-radius: 8px;
+
+            transition: .2s;
+        }
+
+        .group:hover {
+            background: #e6eef7;
+        }
+
+        .active {
+            background: #dcecff;
+            font-weight: bold;
+        }
+
+
+        /* PANEL CENTRAL */
+        .resources {
+            flex: 1;
+            padding: 25px;
+
+            overflow-y: auto;
+
+            background-image:/* fondo curvas IGN */
+                linear-gradient(
+                    rgba(255, 255, 255, .82),
+                    rgba(255, 255, 255, .82)
+                    ),
+                    url("curvas.png");
+
+            background-size: cover;
+            background-position: center;
+        }
+
+        /* TARJETAS */
+        .card {
+            background: rgba(255, 255, 255, .95);
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, .12);
+            transition: .2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .card h3 {
+            margin-bottom: 10px;
+            color: #003366;
+        }
+
+
+        .buttons {
+            margin-top: 15px;
+        }
+
+
+        button {
+            padding: 8px 12px;
+            margin-right: 5px;
+            margin-top: 5px;
+
+            border: none;
+            border-radius: 6px;
+
+            background: #005ea8;
+            color: white;
+
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #00407a;
+        }
+
+
+        /* PANEL METADATOS */
+        .metadata {
+            width: 360px;
+            background: white;
+            padding: 25px;
+            border-left: 1px solid #ddd;
+            overflow-y: auto;
+        }
+
+        .metadata h2 {
+            margin-bottom: 20px;
+            color: #003366;
+        }
+
+        .field {
+            margin-bottom: 15px;
+        }
+
+        .label {
+            font-weight: bold;
+            color: #444;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+
+        <h1>Infraestructura de Datos Espaciales - IGN</h1>
+
+        <p>
+            Catálogo y descarga de información geoespacial
+        </p>
+
+    </header>
+
+
+    <div class="container">
+        <!-- IZQUIERDA -->
+        <div class="sidebar">
+            <input type="text" class="search-box" placeholder="Buscar capas..." id="search" onkeyup="buscar()">
+
+            <h3>Categorías</h3>
+            <div class="group active" onclick="cargarGrupo('limites')">Límites</div>
+            <div class="group" onclick="cargarGrupo('transporte')">Transporte</div>
+            <div class="group" onclick="cargarGrupo('hidrografia')">Hidrografía</div>
+            <div class="group" onclick="cargarGrupo('localidades')">Localidades</div>
+            <div class="group" onclick="cargarGrupo('relieve')">Relieve</div>
+            <div class="group" onclick="cargarGrupo('cobertura')">Cobertura terrestre</div>
+            <div class="group" onclick="cargarGrupo('riesgo')">Riesgo y emergencias</div>
+        </div>
+
+        <!-- CENTRO -->
+        <div class="resources">
+            <h2 id="tituloGrupo">Límites</h2>
+            <div id="listaRecursos"></div>
+        </div>
+
+        <!-- DERECHA -->
+        <div class="metadata">
+            <h2>Metadatos</h2>
+            <div id="metadata">
+                Seleccione una capa para visualizar
+                sus metadatos.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const datos = {
+            limites: [
+                {
+                    nombre: "Límites provinciales",
+                    descripcion: "División administrativa provincial",
+                    fecha: "2026",
+                    sistema: "POSGAR 2007",
+                    licencia: "CC-BY"
+                },
+                {
+                    nombre: "Límites departamentales",
+                    descripcion: "División administrativa departamental",
+                    fecha: "2026",
+                    sistema: "POSGAR 2007",
+                    licencia: "CC-BY"
+                }
+            ],
+            hidrografia: [
+                {
+                    nombre: "Ríos",
+                    descripcion: "Red hidrográfica nacional",
+                    fecha: "2026",
+                    sistema: "POSGAR 2007",
+                    licencia: "CC-BY"
+                }
+            ]
+        }
+
+        cargarGrupo("limites")
+
+        function cargarGrupo(grupo) {
+            let contenedor = document.getElementById("listaRecursos")
+
+            contenedor.innerHTML = ""
+
+            document.getElementById("tituloGrupo").innerHTML = grupo
+
+            datos[grupo]?.forEach(capa => {
+
+                contenedor.innerHTML += `
+            <div class="card">
+                <h3>${capa.nombre}</h3>
+                <p>${capa.descripcion}</p>
+                <div class="buttons">
+                    <button onclick='mostrarMetadatos(${JSON.stringify(capa)})'>Metadatos</button>
+                    <button>GeoJSON</button>
+                    <button>Shapefile</button>
+                    <button>KML</button>
+                    <button>Ver recurso</button>
+                </div>
+            </div>`
+            })
+        }
+
+        function mostrarMetadatos(capa) {
+            document.getElementById("metadata").innerHTML = `
+            <div class="field">
+                <div class="label">Nombre:</div>
+                ${capa.nombre}
+            </div>
+
+            <div class="field">
+                <div class="label">Descripción:</div>
+                ${capa.descripcion}
+            </div>
+
+            <div class="field">
+                <div class="label">Fecha actualización:</div>
+                ${capa.fecha}
+            </div>
+
+            <div class="field">
+                <div class="label">Sistema referencia:</div>
+                ${capa.sistema}
+            </div>
+
+            <div class="field">
+                <div class="label">Licencia:</div>
+                ${capa.licencia}
+            </div>`
+        }
+
+        function buscar() {
+            let texto = document.getElementById("search").value.toLowerCase()
+
+            let cards = document.querySelectorAll(".card")
+
+            cards.forEach(card => {
+                if (card.innerText.toLowerCase().includes(texto)) {
+                    card.style.display = "block"
+                }
+                else {
+                    card.style.display = "none"
+                }
+
+            })
+        }
+    </script>
+</body>
+</html>
