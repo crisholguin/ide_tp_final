@@ -1,0 +1,31 @@
+{
+    "wfs":{
+        "url":"http://localhost:8082/geoserver/ign_descarga/ows?service=WFS&version=2.0.0&request=GetCapabilities"
+    },
+
+    "grupos":{
+        "hidro":"Hidrografía y Oceanografía",
+        "limit":"Geodesia y Demarcación",
+        "habit":"Hábitat e Infraestructura",
+        "trans":"Transporte"
+    },
+
+    "formatos":[
+
+        {
+            "nombre":"GeoJSON",
+            "tipo":"application/json"
+        },
+
+        {
+            "nombre":"Shapefile",
+            "tipo":"SHAPE-ZIP"
+        },
+
+        {
+            "nombre":"CSV",
+            "tipo":"csv"
+        }
+
+    ]
+}
