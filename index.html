@@ -164,6 +164,12 @@
             font-weight: bold;
         }
 
+        .grupos-separador {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 8px 0 12px;
+        }
+
 
         /* ==========================================
         PANEL CENTRAL
@@ -366,6 +372,7 @@
         let WFS_CAPABILITIES_URL = "";
 
         const GRUPO_TODOS = "__todas__";
+        const ARGENMAP_BASE_URL = "https://mapa.ign.gob.ar/";
 
         let datos = {};
         let capasActuales = [];
@@ -442,6 +449,7 @@
                     datos[grupo].push({
                             nombre: titulo,
                             nombreCapa: nombre,
+                            nombreLayer,
                             descripcion,
                             sistema,
                             licencia: "CC-BY",
@@ -478,6 +486,10 @@
             divTodas.onclick = () => cargarGrupo(GRUPO_TODOS);
             contenedorGrupos.appendChild(divTodas);
 
+            const separador = document.createElement("hr");
+            separador.className = "grupos-separador";
+            contenedorGrupos.appendChild(separador);
+
             Object.keys(datos)
                 .sort()
                 .forEach(grupo => {
@@ -512,8 +524,10 @@
                     <a href="${url}" target="_blank"><button>${formato.nombre}</button></a>`;
                 });
 
+                const urlArgenmap = `${ARGENMAP_BASE_URL}?zoom=4&lat=-40&lng=-59&layers=${encodeURIComponent(capa.nombreLayer)}`;
+
                 botonesHTML += `
-                    <button>Ver recurso</button>`;
+                    <a href="${urlArgenmap}" target="_blank"><button>Ver recurso</button></a>`;
 
                 const nombreGrupo = CONFIG.grupos[capa.grupo] || capa.grupo;
 
