@@ -122,13 +122,29 @@
             overflow-y: auto;
         }
 
+        .search-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
         .search-box {
-            width: 100%;
+            flex: 1;
             padding: 10px;
             border-radius: 8px;
             border: 1px solid #ccc;
-            margin-bottom: 20px;
+        }
 
+        .search-container button {
+            padding: 0;
+            margin: 0;
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
         }
 
         .group {
@@ -169,6 +185,7 @@
 
         /* TARJETAS */
         .card {
+            position: relative;
             background: rgba(255, 255, 255, .95);
             padding: 20px;
             margin-bottom: 15px;
@@ -179,6 +196,20 @@
             transition: .2s;
         }
 
+        .card-badge {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            background: #e6eef7;
+            color: #242b54;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: .3px;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+
         .card:hover {
             transform: translateY(-2px);
         }
@@ -186,6 +217,7 @@
         .card h3 {
             margin-bottom: 10px;
             color: #003366;
+            padding-right: 130px;
         }
 
 
@@ -215,7 +247,7 @@
         ========================================== */
 
         .metadata {
-            width: 360px;
+            width: 720px;
             background: white;
             padding: 25px;
             border-left: 1px solid #ddd;
@@ -229,6 +261,10 @@
 
         .field {
             margin-bottom: 15px;
+        }
+
+        .texto-parrafos {
+            white-space: pre-line;
         }
 
         .label {
@@ -294,7 +330,13 @@
     <div class="container">
         <!-- IZQUIERDA -->
         <div class="sidebar">
-            <input type="text" class="search-box" placeholder="Buscar capas..." id="search" onkeyup="buscar()">
+            <div class="search-container">
+                <input type="text" class="search-box" placeholder="Buscar capas..." id="search"
+                    onkeydown="if(event.key === 'Enter') buscar()">
+                <button onclick="buscar()" title="Buscar" aria-label="Buscar">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+            </div>
 
             <h3>Categorías</h3>
             <div id="grupos">
@@ -323,7 +365,10 @@
 
         let WFS_CAPABILITIES_URL = "";
 
+        const GRUPO_TODOS = "__todas__";
+
         let datos = {};
+        let capasActuales = [];
 
         cargarConfiguracion();
 
@@ -379,6 +424,11 @@
 
                     let sistema = ft.querySelector("DefaultCRS")?.textContent || "N/D";
 
+                    // El atributo es xlink:href; buscamos por localName para no depender del prefijo exacto
+                    let metadataEl = ft.querySelector("MetadataURL");
+                    let metadataURL = metadataEl
+                        ? Array.from(metadataEl.attributes).find(attr => attr.localName === "href")?.value || ""
+                        : "";
 
                     let nombreLayer = nombre.split(":").pop();
 
@@ -394,17 +444,15 @@
                             nombreCapa: nombre,
                             descripcion,
                             sistema,
-                            licencia: "CC-BY"
+                            licencia: "CC-BY",
+                            metadataURL,
+                            grupo
                         });
                 });
 
                 generarMenuGrupos();
 
-                let grupos = Object.keys(datos);
-
-                if (grupos.length) {
-                    cargarGrupo(grupos[0]);
-                }
+                cargarGrupo(GRUPO_TODOS);
 
             }
             catch (error) {
@@ -421,6 +469,14 @@
                 );
 
             contenedorGrupos.innerHTML = "";
+
+            // Opción "Todas las capas": muestra el catálogo completo sin filtrar por prefijo
+            const divTodas = document.createElement("div");
+            divTodas.className = "group";
+            divTodas.textContent = "Todas las capas";
+            divTodas.dataset.grupo = GRUPO_TODOS;
+            divTodas.onclick = () => cargarGrupo(GRUPO_TODOS);
+            contenedorGrupos.appendChild(divTodas);
 
             Object.keys(datos)
                 .sort()
@@ -442,53 +498,197 @@
 
         }
 
-        function cargarGrupo(grupo) {
-            let contenedor = document.getElementById("listaRecursos")
+        function renderizarCapas(lista) {
+            let baseURL = WFS_CAPABILITIES_URL.split("?")[0];
+            let html = "";
 
-            contenedor.innerHTML = ""
-
-            document.getElementById("tituloGrupo").innerHTML = CONFIG.grupos[grupo] || grupo;
-
-            document.querySelectorAll(".group").forEach(el => {
-                el.classList.toggle("active", el.dataset.grupo === grupo)
-            })
-
-            capasActuales = datos[grupo] ?? []
-
-            capasActuales.forEach((capa, index) => {
-                let baseURL = WFS_CAPABILITIES_URL.split("?")[0];
-
-                let geojson = `${baseURL}?service=WFS&version=2.0.0&request=GetFeature&typeName=${capa.nombreCapa}&outputFormat=application/json`.replace(/\s/g,'');
-                let shp = `${baseURL}?service=WFS&version=2.0.0&request=GetFeature&typeName=${capa.nombreCapa}&outputFormat=shape-zip`.replace(/\s/g,'');
-                let kml=`${baseURL}?service=WFS&version=2.0.0&request=GetFeature&typeName=${capa.nombreCapa}&outputFormat=KML`.replace(/\s/g,'');
-                
-
-                let botonesHTML=`
+            lista.forEach((capa, index) => {
+                let botonesHTML = `
                     <button onclick='mostrarMetadatos(${index})'>Metadatos</button>`;
 
-                    CONFIG.formatos.forEach(formato=>{
-                        let url = `${baseURL}?service=WFS&version=2.0.0&request=GetFeature&typeName=${capa.nombreCapa}&outputFormat=${encodeURIComponent(formato.tipo)}`.replace(/\s/g,'');
-                        botonesHTML+=`
+                CONFIG.formatos.forEach(formato => {
+                    let url = `${baseURL}?service=WFS&version=2.0.0&request=GetFeature&typeName=${capa.nombreCapa}&outputFormat=${encodeURIComponent(formato.tipo)}`.replace(/\s/g, '');
+                    botonesHTML += `
                     <a href="${url}" target="_blank"><button>${formato.nombre}</button></a>`;
-                    });
-                
-                botonesHTML+=`
-                    <button>Ver recurso</button>`;    
-                contenedor.innerHTML += `
+                });
+
+                botonesHTML += `
+                    <button>Ver recurso</button>`;
+
+                const nombreGrupo = CONFIG.grupos[capa.grupo] || capa.grupo;
+
+                html += `
             <div class="card">
+                <span class="card-badge">${nombreGrupo}</span>
                 <h3>${capa.nombre}</h3>
                 <p>${capa.descripcion}</p>
                 <div class="buttons">
                     ${botonesHTML}
                 </div>
-            </div>`
-            })
+            </div>`;
+            });
+
+            return html;
         }
 
-        function mostrarMetadatos(index) {
-            const capa = capasActuales[index]
+        function cargarGrupo(grupo) {
+            let contenedor = document.getElementById("listaRecursos")
 
-            document.getElementById("metadata").innerHTML = `
+            document.getElementById("tituloGrupo").innerHTML =
+                grupo === GRUPO_TODOS ? "Todas las capas" : (CONFIG.grupos[grupo] || grupo);
+
+            document.querySelectorAll(".group").forEach(el => {
+                el.classList.toggle("active", el.dataset.grupo === grupo)
+            })
+
+            capasActuales = grupo === GRUPO_TODOS
+                ? Object.values(datos).flat()
+                : (datos[grupo] ?? [])
+
+            contenedor.innerHTML = renderizarCapas(capasActuales);
+        }
+
+        // Pre-carga en segundo plano las palabras clave de los metadatos de cada capa,
+        // para que el buscador pueda usarlas sin tener que esperar a que el usuario
+        // abra el panel de "Metadatos" de cada una
+        async function precargarPalabrasClave() {
+            const todasLasCapas = Object.values(datos).flat();
+
+            const tareas = todasLasCapas.map(async capa => {
+                capa.palabrasClave = [];
+
+                if (!capa.metadataURL) return;
+
+                try {
+                    const response = await fetch(capa.metadataURL);
+                    if (!response.ok) return;
+
+                    const texto = await response.text();
+                    const xmlDoc = new DOMParser().parseFromString(texto, "text/xml");
+
+                    if (xmlDoc.getElementsByTagName("parsererror").length > 0) return;
+
+                    const meta = parsearMetadataISO19139(xmlDoc);
+                    capa.palabrasClave = meta.palabrasClave;
+                } catch (error) {
+                    console.warn(`No se pudieron precargar palabras clave de ${capa.nombreCapa}:`, error);
+                }
+            });
+
+            await Promise.allSettled(tareas);
+            console.log("Palabras clave precargadas para el buscador");
+        }
+
+        // Saca tildes y pasa a minúsculas para comparar texto sin distinción de acentos/mayúsculas
+        function normalizarTexto(texto) {
+            return (texto || "")
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+        }
+
+        let palabrasClaveListas = false;
+        let promesaPrecarga = null;
+
+        // Se asegura de que las palabras clave estén cargadas antes de buscar,
+        // pero solo dispara la descarga la primera vez que hace falta (no al cargar la página)
+        async function asegurarPalabrasClave() {
+            if (palabrasClaveListas) return;
+
+            if (!promesaPrecarga) {
+                promesaPrecarga = precargarPalabrasClave().then(() => {
+                    palabrasClaveListas = true;
+                });
+            }
+
+            await promesaPrecarga;
+        }
+
+        async function buscar() {
+            const textoBusqueda = normalizarTexto(document.getElementById("search").value.trim());
+
+            if (!textoBusqueda) {
+                const grupoActivo = document.querySelector(".group.active")?.dataset.grupo
+                    || GRUPO_TODOS;
+
+                cargarGrupo(grupoActivo);
+                return;
+            }
+
+            document.getElementById("tituloGrupo").innerHTML = "Buscando...";
+            document.getElementById("listaRecursos").innerHTML = "<p>Buscando en el catálogo...</p>";
+
+            await asegurarPalabrasClave();
+
+            const resultados = Object.values(datos).flat().filter(capa => {
+                const coincideNombre = normalizarTexto(capa.nombre).includes(textoBusqueda);
+                const coincideNombreCapa = normalizarTexto(capa.nombreCapa).includes(textoBusqueda);
+                const coincidePalabraClave = (capa.palabrasClave || [])
+                    .some(palabra => normalizarTexto(palabra).includes(textoBusqueda));
+
+                return coincideNombre || coincideNombreCapa || coincidePalabraClave;
+            });
+
+            document.getElementById("tituloGrupo").innerHTML = "Resultados de la búsqueda";
+
+            document.querySelectorAll(".group").forEach(el => el.classList.remove("active"));
+
+            capasActuales = resultados;
+
+            document.getElementById("listaRecursos").innerHTML = resultados.length
+                ? renderizarCapas(resultados)
+                : "<p>No se encontraron capas que coincidan con la búsqueda.</p>";
+        }
+
+        // ==========================================
+        // METADATOS EXTENDIDOS (ISO19139 vía GeoNetwork)
+        // ==========================================
+
+        // Busca elementos por su nombre local, ignorando el prefijo de namespace (gmd:, gco:, etc.)
+        function elementosPorTag(root, localName) {
+            if (!root) return [];
+            return Array.from(root.getElementsByTagName("*")).filter(e => e.localName === localName);
+        }
+
+        function elementoPorTag(root, localName) {
+            return elementosPorTag(root, localName)[0] || null;
+        }
+
+        function textoPorTag(root, localName) {
+            const el = elementoPorTag(root, localName);
+            return el ? el.textContent.trim() : "";
+        }
+
+        function parsearMetadataISO19139(xmlDoc) {
+            const identificationInfo = elementoPorTag(xmlDoc, "MD_DataIdentification");
+            const citation = elementoPorTag(identificationInfo, "CI_Citation");
+            const pointOfContact = elementoPorTag(identificationInfo, "pointOfContact");
+            const bbox = elementoPorTag(identificationInfo, "EX_GeographicBoundingBox");
+            const distFormat = elementoPorTag(xmlDoc, "MD_Format");
+
+            return {
+                titulo: textoPorTag(citation, "title"),
+                fechaPublicacion: textoPorTag(citation, "DateTime"),
+                resumen: textoPorTag(identificationInfo, "abstract"),
+                autor: textoPorTag(pointOfContact, "individualName"),
+                organizacion: textoPorTag(pointOfContact, "organisationName"),
+                palabrasClave: elementosPorTag(identificationInfo, "keyword")
+                    .map(el => el.textContent.trim())
+                    .filter(Boolean),
+                restricciones: textoPorTag(identificationInfo, "otherConstraints"),
+                formatoDistribucion: textoPorTag(distFormat, "name"),
+                extension: bbox ? {
+                    oeste: textoPorTag(bbox, "westBoundLongitude"),
+                    este: textoPorTag(bbox, "eastBoundLongitude"),
+                    sur: textoPorTag(bbox, "southBoundLatitude"),
+                    norte: textoPorTag(bbox, "northBoundLatitude")
+                } : null,
+                linaje: textoPorTag(xmlDoc, "statement")
+            };
+        }
+
+        function renderMetadatosBasicos(capa) {
+            return `
             <div class="field">
                 <div class="label">Nombre:</div>
                 ${capa.nombre}
@@ -496,7 +696,7 @@
 
             <div class="field">
                 <div class="label">Descripción:</div>
-                ${capa.descripcion}
+                <span id="descripcion-capa" class="texto-parrafos">${capa.descripcion}</span>
             </div>
 
             <div class="field">
@@ -512,24 +712,119 @@
             <div class="field">
                 <div class="label">Licencia:</div>
                 ${capa.licencia}
-            </div>`
+            </div>`;
         }
 
-        function buscar() {
-            let texto = document.getElementById("search").value.toLowerCase()
+        function renderMetadatosExtendidos(meta, catalogUrl) {
+            let html = "";
 
-            let cards = document.querySelectorAll(".card")
+            if (meta.autor || meta.organizacion) {
+                html += `
+            <div class="field">
+                <div class="label">Autor / Organización:</div>
+                ${[meta.autor, meta.organizacion].filter(Boolean).join(" — ")}
+            </div>`;
+            }
 
-            cards.forEach(card => {
-                if (card.innerText.toLowerCase().includes(texto)) {
-                    card.style.display = "block"
-                }
-                else {
-                    card.style.display = "none"
-                }
+            if (meta.fechaPublicacion) {
+                html += `
+            <div class="field">
+                <div class="label">Fecha de publicación:</div>
+                ${meta.fechaPublicacion}
+            </div>`;
+            }
 
-            })
+            if (meta.palabrasClave.length) {
+                html += `
+            <div class="field">
+                <div class="label">Palabras clave:</div>
+                ${meta.palabrasClave.join(", ")}
+            </div>`;
+            }
+
+            if (meta.restricciones) {
+                html += `
+            <div class="field">
+                <div class="label">Restricciones de uso:</div>
+                <span class="texto-parrafos">${meta.restricciones}</span>
+            </div>`;
+            }
+
+            if (meta.formatoDistribucion) {
+                html += `
+            <div class="field">
+                <div class="label">Formato de distribución:</div>
+                ${meta.formatoDistribucion}
+            </div>`;
+            }
+
+            if (meta.extension) {
+                html += `
+            <div class="field">
+                <div class="label">Extensión geográfica:</div>
+                O: ${meta.extension.oeste} · E: ${meta.extension.este} · S: ${meta.extension.sur} · N: ${meta.extension.norte}
+            </div>`;
+            }
+
+            if (meta.linaje) {
+                html += `
+            <div class="field">
+                <div class="label">Linaje:</div>
+                <span class="texto-parrafos">${meta.linaje}</span>
+            </div>`;
+            }
+
+            html += `
+            <div class="field">
+                <a href="${catalogUrl}" target="_blank">Ver XML de metadatos completo</a>
+            </div>`;
+
+            return html;
         }
+
+        async function mostrarMetadatos(index) {
+            const capa = capasActuales[index];
+            const panel = document.getElementById("metadata");
+
+            panel.innerHTML = renderMetadatosBasicos(capa) +
+                `<div class="field" id="metadatos-extendidos"><em>Cargando metadatos completos...</em></div>`;
+
+            if (!capa.metadataURL) {
+                document.getElementById("metadatos-extendidos").innerHTML = "Esta capa no tiene metadatos vinculados.";
+                return;
+            }
+
+            try {
+                const response = await fetch(capa.metadataURL);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const texto = await response.text();
+                const xmlDoc = new DOMParser().parseFromString(texto, "text/xml");
+
+                if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+                    throw new Error("XML de metadatos inválido");
+                }
+
+                const meta = parsearMetadataISO19139(xmlDoc);
+
+                if (meta.resumen) {
+                    document.getElementById("descripcion-capa").textContent = meta.resumen;
+                }
+
+                document.getElementById("metadatos-extendidos").outerHTML =
+                    renderMetadatosExtendidos(meta, capa.metadataURL);
+
+            } catch (error) {
+                console.error("Error cargando metadatos completos:", error);
+                document.getElementById("metadatos-extendidos").innerHTML =
+                    `No se pudieron cargar los metadatos completos (${error.message}).
+                     <a href="${capa.metadataURL}" target="_blank">Ver en el catálogo</a>`;
+            }
+        }
+
     </script>
 </body>
 
